@@ -53,25 +53,21 @@ void promtPrint()
 void exe_commmand(int args)
 {
 	int i;
-	for(i=0;i<args;i++)
-		printf("%d. %s\n",i,curComm[i]);
 	if(!strcmp(curComm[0],"cd"))
 	{
 		if(args == 1)
 		{
 			int result = chdir(getenv("HOME"));
-			//if(result == 0)
-			//	setenv("PWD",getenv("HOME"),1);
+			if(result != 0)
+				printf("Error going in home directory.\n");
 		}
 		else if(args == 2)
 		{
-			printf("%s\n",curComm[1]);
 			int result = chdir(curComm[1]);
-			printf("Result:%d\n",result);
 			if(result == 0)
 				setenv("PWD",curComm[1],1);
 			else
-				printf("error.\n");
+				printf("No such directory.\n");
 		}
 		else
 		{
