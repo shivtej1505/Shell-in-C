@@ -32,12 +32,14 @@ char *repHome(char *pwd,char *home)
 void promtPrint()
 {
 	char sysName[1005];
+	char temp[1005];
 	char *user=NULL, *pwd=NULL, *home=NULL,*tmp=NULL;
 	int res;
 
 	user = getenv("LOGNAME");
 	home = getenv("HOME");
-	pwd = repHome(getenv("PWD"), home);
+	tmp = getcwd(tmp,1000);
+	pwd = repHome(tmp, home);
 	res = gethostname(sysName, 1000);
 	//printf("PWD: %s \n HOME: %s\n", pwd, home);
 
@@ -51,21 +53,21 @@ void promtPrint()
 void exe_commmand(int args)
 {
 	int i;
-	/*
-	   for(i=0;i<args;i++)
-	   printf("%d. %s\n",i,curComm[i]);
-	   */
+	for(i=0;i<args;i++)
+		printf("%d. %s\n",i,curComm[i]);
 	if(!strcmp(curComm[0],"cd"))
 	{
 		if(args == 1)
 		{
 			int result = chdir(getenv("HOME"));
-			if(result == 0)
-				setenv("PWD",getenv("HOME"),1);
+			//if(result == 0)
+			//	setenv("PWD",getenv("HOME"),1);
 		}
 		else if(args == 2)
 		{
+			printf("%s\n",curComm[1]);
 			int result = chdir(curComm[1]);
+			printf("Result:%d\n",result);
 			if(result == 0)
 				setenv("PWD",curComm[1],1);
 			else
@@ -94,20 +96,16 @@ void exe_commmand(int args)
 		return;
 	}
 }
+
 int parser(char *command,int size,int noSpace)
 {
-	printf("fine\n");
 	int i,j,k=0;
 	for(i=0;i<=noSpace;i++)
 	{
 		curComm[i] = malloc(100*sizeof(char));
 		if(k>size)
-		{
-			// May it happen
 			break;
-		}
 		j=0;
-		printf("%d\n",k);
 		while(command[k] != ' ' && command[k] != '\0')
 		{
 			curComm[i][j] = command[k];
@@ -117,7 +115,7 @@ int parser(char *command,int size,int noSpace)
 		if(command[k] == ' ' || command[k] == '\0')
 		{
 			curComm[i][j]='\0';
-			//		printf("%d. %s\n",i, curComm[i]);
+			//printf("%d. %s\n",i, curComm[i]);
 			k++;
 		}
 	}
@@ -125,37 +123,48 @@ int parser(char *command,int size,int noSpace)
 		curComm[i]='\0';
 	return noSpace+1;
 }
+
 int calSpace(char *stg)
 {
-	int i,l=strlen(stg);
-	int space=0;
-	for(i=0;i<l;i++)
+	int i,l = strlen(stg);
+	int space = 0;
+	for(i=0; i<l; i++)
 	{
-		if(stg[i]==' ')
+		if(stg[i] == ' ')
 			space++;
 	}
 	return space;
 }
+
+// Cutoff unused spaces in commands;
 char *cutOffSpace(char *strg)
 {
 	int l=strlen(strg),i,j=0;
 	char sgt[1000];
-	for(i=0;i<l;i++)
+	if(strg[0] == ' ')
+		i=1;
+	else
+		i=0;
+	if(strg[l-1] == ' ')
 	{
-		if(strg[0] != ' ')
-			break;
+		while(i<l-1)
+			sgt[j++]=strg[i++];
 	}
-	for(;i<l;i++)
-		sgt[j++]=strg[i];
+	else
+	{
+		while(i<l)
+			sgt[j++]=strg[i++];
+	}
 	sgt[j]='\0';
 	return sgt;
 }
+
 int main()
 {	
 	// The main shell loop
 	int args;
 	char c;
-	char *tokens;
+	char *token;
 	char tmp[1000005];
 	int noChars,flag,noSpace;
 	while(1)
@@ -171,7 +180,7 @@ int main()
 			{
 				if(noChars)
 					flag=1;
-				c=getc(stdin);
+				c = getc(stdin);
 				if(c == '\n')
 					break;
 			}
@@ -187,16 +196,18 @@ int main()
 			c = getc(stdin);
 		}
 		tmp[noChars]='\0';
-		tokens = strtok(tmp,";");
-		while(tokens != NULL)
+		//printf("%s\n",tmp);
+		token = strtok(tmp,";");
+		char *temp;
+		while(token != NULL)
 		{
-			int lol = calSpace(tokens);
-			int len = strlen(tokens);
-			printf("%s %d %d\n",tokens,len,lol);
-			//args = parser(tokens, noChars,noSpace);
-			args = parser(cutOffSpace(tokens),len,lol);
+			temp = cutOffSpace(token);	
+			int noS = calSpace(temp);
+			int len = strlen(temp);
+
+			args = parser(temp,len,noS);
 			exe_commmand(args);
-			tokens = strtok(NULL, ";");
+			token = strtok(NULL, ";");
 		}
 		//printf("%s\n",tmp);
 	}
