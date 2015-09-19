@@ -1,9 +1,12 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
 
 char *curComm[100];
+// custom input output pointer
+int in, out;
 char *repHome(char *pwd,char *home)
 {
 	int lp,lh,i,min;
@@ -50,7 +53,7 @@ void promtPrint()
 		printf("An error occured.");
 }
 
-void exe_commmand(int args)
+void exe_commmand(int args, int redirect)
 {
 	int i;
 	if(!strcmp(curComm[0],"cd"))
@@ -85,6 +88,8 @@ void exe_commmand(int args)
 		}
 		else if(pidM == 0)
 		{
+			if(redirect == 0 )      // stdin ---> in
+				dup2(in,0);
 			int isError = execvp(curComm[0],curComm);
 			if( isError == -1)
 				printf("%s: command not found.",curComm[0]);
@@ -157,6 +162,30 @@ char *cutOffSpace(char *strg)
 	return sgt;
 }
 
+void redirection(char *command)
+{
+	char *breaks,*temp;
+	int len,no_spaces,args;
+	breaks = strtok(command,"<");
+	temp = cutOffSpace(breaks);
+	//printf("1: %s\n",breaks);
+	no_spaces = calSpace(temp);
+
+	len = strlen(temp);
+	args = parser(temp,len,no_spaces);
+	breaks = strtok(NULL,"<");
+	printf("2: %s\n",breaks);
+	if(breaks != NULL)
+	{
+		in = open(cutOffSpace(breaks),O_RDONLY);
+		exe_commmand(args,0);
+		close(in);
+	}
+	else
+		exe_commmand(args,-1);
+
+}
+
 int main()
 {	
 	// The main shell loop
@@ -200,11 +229,12 @@ int main()
 		while(token != NULL)
 		{
 			temp = cutOffSpace(token);	
-			int noS = calSpace(temp);
-			int len = strlen(temp);
+			//int noS = calSpace(temp);
+			//int len = strlen(temp);
 
-			args = parser(temp,len,noS);
-			exe_commmand(args);
+			//args = parser(temp,len,noS);
+			//exe_commmand(args);
+			redirection(temp);
 			token = strtok(NULL, ";");
 		}
 		//printf("%s\n",tmp);
