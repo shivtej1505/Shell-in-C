@@ -1,9 +1,12 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <fcntl.h>
 
 char *curComm[100];
+// For input-output redirection
+int in, out;
 char *repHome(char *pwd,char *home)
 {
 	int lp,lh,i,min;
@@ -50,7 +53,7 @@ void promtPrint()
 		printf("An error occured.");
 }
 
-void exe_commmand(int args)
+void exe_commmand(int args, int redirect)
 {
 	int i;
 	if(!strcmp(curComm[0],"cd"))
@@ -85,6 +88,10 @@ void exe_commmand(int args)
 		}
 		else if(pidM == 0)
 		{
+			if(redirect == 0 || redirect == 3)  // For input redirection
+				dup2(in, 0);
+			if(redirect == 1 || redirect == 3)  // For output redirection
+				dup2(out, 1);
 			int isError = execvp(curComm[0],curComm);
 			if( isError == -1)
 				printf("%s: command not found.",curComm[0]);
@@ -138,7 +145,7 @@ int calSpace(char *stg)
 char *cutOffSpace(char *strg)
 {
 	int l=strlen(strg),i,j=0;
-	char sgt[1000];
+	char *sgt = (char*)malloc(sizeof(char) * 10000);
 	if(strg[0] == ' ')
 		i=1;
 	else
@@ -155,6 +162,81 @@ char *cutOffSpace(char *strg)
 	}
 	sgt[j]='\0';
 	return sgt;
+}
+
+void redirection(char *command)
+{
+	char *filtL=NULL,*filtR=NULL,*middle=NULL,*temp;
+	int len,no_spaces,args,flagI=0,flagO=0,i;
+	char *saveL=NULL,*saveR=NULL;
+
+	// Finding directions
+	i=0;
+	while(command[i] != '\0')
+	{
+		if(command[i] == '<')
+			flagI = 1;
+		else if(command[i] == '>')
+			flagO = 1;
+		i++;
+	}
+
+	if(flagI)
+		filtL = strtok_r(command,"<",&saveL);
+	if(flagO)
+	{
+		if(flagI)
+		{
+			filtR = strtok_r(NULL,">",&saveL);
+			middle = filtR;
+			filtR = strtok_r(NULL,">",&saveL);
+		}
+		else
+		{
+			filtR = strtok_r(command,">",&saveR);
+			middle = filtR;
+			filtR = strtok_r(NULL,">",&saveR);
+		}
+	}
+	else
+	{
+		if(filtL == NULL)
+			middle = command;
+		else
+			middle = strtok_r(NULL,"<",&saveL);
+	}
+
+	if(filtL == NULL)
+		temp = cutOffSpace(middle);
+	else
+		temp = cutOffSpace(filtL);
+
+	no_spaces = calSpace(temp);
+	len = strlen(temp);
+	args = parser(temp, len, no_spaces);
+
+	if(flagI && flagO)
+	{
+		in = open(cutOffSpace(middle), O_RDONLY);
+		out = open(cutOffSpace(filtR),O_RDONLY | O_WRONLY | O_CREAT, 0666);
+		exe_commmand(args,3);
+		close(in);
+		close(out);
+	}
+	else if(flagI)
+	{
+		in = open(cutOffSpace(middle),O_RDONLY);
+		exe_commmand(args,0);
+		close(in);
+	}
+	else if(flagO)
+	{
+		out = open(cutOffSpace(filtR),O_RDONLY | O_WRONLY | O_CREAT, 0666);
+		exe_commmand(args,1);
+		close(out);
+	}
+	else
+		exe_commmand(args,-1);
 }
 
 int main()
@@ -200,11 +282,12 @@ int main()
 		while(token != NULL)
 		{
 			temp = cutOffSpace(token);	
-			int noS = calSpace(temp);
-			int len = strlen(temp);
+			//int noS = calSpace(temp);
+			//int len = strlen(temp);
 
-			args = parser(temp,len,noS);
-			exe_commmand(args);
+			//args = parser(temp,len,noS);
+			//exe_commmand(args);
+			redirection(temp);
 			token = strtok(NULL, ";");
 		}
 		//printf("%s\n",tmp);
