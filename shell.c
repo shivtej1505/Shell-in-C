@@ -3,10 +3,15 @@
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/ptrace.h>
+#include <sys/stat.h> 
+#include <signal.h>
 
-char *curComm[100];
+char *curComm[100],pipedInput[100][100];
 // For input-output redirection
 int in, out;
+int fd[2];
 char *repHome(char *pwd,char *home)
 {
 	int lp,lh,i,min;
@@ -97,7 +102,7 @@ void exe_commmand(int args, int redirect)
 				printf("%s: command not found.",curComm[0]);
 			_exit(0);
 		}
-		wait();
+		waitpid(pidM,NULL,0);
 		return;
 	}
 }
@@ -163,13 +168,148 @@ char *cutOffSpace(char *strg)
 	sgt[j]='\0';
 	return sgt;
 }
+void broken_pipe(char *raw_command)
+{
+	char *token=NULL,*savePtr=NULL,*init=NULL,*cmd_one=NULL,*cmd_two=NULL;
+	int no_pipe = 0,i=0,j;
+	while(raw_command[i] != '\0')
+	{
+		if(raw_command[i] == '|')
+			no_pipe++;
+		i++;
+	}
+	printf("%d\n",no_pipe);
+	if(raw_command[i-1] == '|')
+	{
+		perror("Invalid command\n");
+		return;
+	}
+	if(no_pipe)
+	{
+		j=0;
+		for(init = raw_command;;init = NULL)
+		{
+			token = strtok_r(init,"|",&savePtr);
+			if(token == NULL)
+				break;
+			strcpy(pipedInput[j],token);
+			j++;
+		}
+		execute_pipe(j);
+	}
+	else
+		redirection(raw_command);
+}
+
+void execute_pipe(int size)
+{
+	int h,j,status=0,cpid;
+	int pipes[size][2];
+	pid_t pid;
+	for(j=0;j<size;j++)
+		pipe(pipes[j]);
+	for(h=0;h<size;h++)
+	{
+		printf("%s\n",pipedInput[h]);
+		char *filtL=NULL,*filtR=NULL,*middle=NULL,*temp;
+		int len,no_spaces,args,flagI=0,flagO=0,i;
+		char *saveL=NULL,*saveR=NULL,*command;
+		// Finding directions
+		i=0;
+		command = pipedInput[h];
+		while(command[i] != '\0')
+		{
+			if(command[i] == '<')
+				flagI = 1;
+			else if(command[i] == '>')
+				flagO = 1;
+			i++;
+		}
+
+		if(flagI)
+			filtL = strtok_r(command,"<",&saveL);
+		if(flagO)
+		{
+			if(flagI)
+			{
+				filtR = strtok_r(NULL,">",&saveL);
+				middle = filtR;
+				filtR = strtok_r(NULL,">",&saveL);
+			}
+			else
+			{
+				filtR = strtok_r(command,">",&saveR);
+				middle = filtR;
+				filtR = strtok_r(NULL,">",&saveR);
+			}
+		}
+		else
+		{
+			if(filtL == NULL)
+				middle = command;
+			else
+				middle = strtok_r(NULL,"<",&saveL);
+		}
+
+		if(filtL == NULL)
+			temp = cutOffSpace(middle);
+		else
+			temp = cutOffSpace(filtL);
+
+		no_spaces = calSpace(temp);
+		len = strlen(temp);
+		args = parser(temp, len, no_spaces);
+		printf("temp:%s\nlen:%d\nspaces:%d\n",temp,len,no_spaces);
+		//continue;
+		pid = fork();
+		if(pid<0)
+			perror("fork error");
+		else if(pid == 0)
+		{
+			if(flagO)
+			{
+				out = open(cutOffSpace(filtR),O_RDONLY | O_WRONLY | O_CREAT, 0666);
+				dup2(out,1);
+				close(out);
+			}
+			else if( h != size-1)
+			{
+				if((dup2(pipes[h][1],1))<0)
+					perror("dup2 error");
+			}
+			if(flagI)
+			{
+				in = open(cutOffSpace(middle),O_RDONLY);
+				dup2(in,0);
+				close(in);
+			}
+			else if(h)
+			{
+				if((dup2(pipes[h-1][0],0))<0)
+					perror("dup2 error");
+			}
+			if((execvp(curComm[0],curComm))<0)
+			{
+				perror("can't execute this command");
+				_exit(-1);
+			}
+			_exit(0);
+		}
+		else;
+			//waitpid(pid,&status,0);
+	}
+	for(j=0;j<h;j++)
+	{
+		close(pipes[0][j]);
+		close(pipes[1][j]);
+	}
+}
 
 void redirection(char *command)
 {
 	char *filtL=NULL,*filtR=NULL,*middle=NULL,*temp;
 	int len,no_spaces,args,flagI=0,flagO=0,i;
 	char *saveL=NULL,*saveR=NULL;
-
 	// Finding directions
 	i=0;
 	while(command[i] != '\0')
@@ -282,12 +422,8 @@ int main()
 		while(token != NULL)
 		{
 			temp = cutOffSpace(token);	
-			//int noS = calSpace(temp);
-			//int len = strlen(temp);
-
-			//args = parser(temp,len,noS);
-			//exe_commmand(args);
-			redirection(temp);
+			broken_pipe(temp);
+			//redirection(temp);
 			token = strtok(NULL, ";");
 		}
 		//printf("%s\n",tmp);
