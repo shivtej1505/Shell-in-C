@@ -295,8 +295,8 @@ void execute_pipe(int size)
 			}
 			_exit(0);
 		}
-		else;
-			//waitpid(pid,&status,0);
+		else
+			while(wait(&status) != pid);
 	}
 	for(j=0;j<h;j++)
 	{
